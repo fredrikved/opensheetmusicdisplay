@@ -10,13 +10,14 @@ export class TransposeCalculator implements ITransposeCalculator {
     private static keyMapping: number[] = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
     private static noteEnums: NoteEnum[] = [NoteEnum.C, NoteEnum.D, NoteEnum.E, NoteEnum.F, NoteEnum.G, NoteEnum.A, NoteEnum.B];
     public transposePitch(pitch: Pitch, currentKeyInstruction: KeyInstruction, halftones: number): Pitch {
-
         let transposedFundamentalNote: NoteEnum = NoteEnum.C;
         let transposedOctave: number = 0;
         let transposedAccidental: AccidentalEnum = AccidentalEnum.NONE;
-        const result: { halftone: number, overflow: number } = Pitch.CalculateTransposedHalfTone(pitch, halftones);
-        let transposedHalfTone: number = result.halftone;
-        let octaveChange: number = result.overflow;
+
+        let {
+            halftone: transposedHalfTone,
+            overflow: octaveChange
+        } = Pitch.CalculateTransposedHalfTone(pitch, halftones);
 
         for (let i: number = 0; i < TransposeCalculator.noteEnums.length; i++) {
             const currentValue: number = <number>TransposeCalculator.noteEnums[i];
@@ -25,7 +26,7 @@ export class TransposeCalculator implements ITransposeCalculator {
                 transposedFundamentalNote = TransposeCalculator.noteEnums[noteIndex];
                 transposedOctave = <number>(pitch.Octave + octaveChange);
                 transposedAccidental = AccidentalEnum.NONE;
-                return new Pitch(transposedFundamentalNote, transposedOctave, transposedAccidental);
+                return this.validatePitch(new Pitch(transposedFundamentalNote, transposedOctave, transposedAccidental), currentKeyInstruction);
             } else if (currentValue > transposedHalfTone) {
                 break;
             }
@@ -55,9 +56,7 @@ export class TransposeCalculator implements ITransposeCalculator {
                 break;
             }
         }
-
-        const transposedPitch: Pitch = new Pitch(transposedFundamentalNote, transposedOctave, transposedAccidental);
-        return transposedPitch;
+        return this.validatePitch(new Pitch(transposedFundamentalNote, transposedOctave, transposedAccidental), currentKeyInstruction);
     }
     public transposeKey(keyInstruction: KeyInstruction, transpose: number): void {
         let currentIndex: number = 0;
@@ -77,5 +76,20 @@ export class TransposeCalculator implements ITransposeCalculator {
         }
         keyInstruction.Key = TransposeCalculator.keyMapping[newIndex];
         keyInstruction.isTransposedBy = transpose;
+    }
+    private validatePitch(pitch: Pitch, keyInstruction: KeyInstruction): Pitch {
+        if (keyInstruction.Key > 0 && keyInstruction.willAlterateNote(NoteEnum.E)) {
+            if (pitch.FundamentalNote === NoteEnum.F && pitch.Accidental === AccidentalEnum.NONE) {
+                return new Pitch(NoteEnum.E, pitch.Octave, AccidentalEnum.SHARP);
+            }
+        } else if (keyInstruction.Key < 0 && (keyInstruction.willAlterateNote(NoteEnum.B) || keyInstruction.willAlterateNote(NoteEnum.E))) {
+            if (pitch.FundamentalNote === NoteEnum.A && pitch.Accidental === AccidentalEnum.SHARP) {
+                return new Pitch(NoteEnum.B, pitch.Octave, AccidentalEnum.FLAT);
+            }
+            if (pitch.FundamentalNote === NoteEnum.D && pitch.Accidental === AccidentalEnum.SHARP) {
+                return new Pitch(NoteEnum.E, pitch.Octave, AccidentalEnum.FLAT);
+            }
+        }
+        return pitch;
     }
 }
